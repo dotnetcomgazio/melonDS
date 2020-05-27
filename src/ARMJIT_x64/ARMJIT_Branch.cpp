@@ -127,17 +127,29 @@ void Compiler::Comp_JumpTo(u32 addr, bool forceNonConstantCycles)
     if ((Thumb || CurInstr.Cond() >= 0xE) && !forceNonConstantCycles)
         ConstantCycles += cycles;
     else
-        SUB(32, MDisp(RCPU, offsetof(ARM, Cycles)), Imm8(cycles));
+        ADD(32, MDisp(RCPU, offsetof(ARM, Cycles)), Imm8(cycles));
 }
 
 void Compiler::Comp_JumpTo(Gen::X64Reg addr, bool restoreCPSR)
 {
     IrregularCycles = true;
 
-    bool cpsrDirty = CPSRDirty;
+    BitSet16 hiRegsLoaded(RegCache.LoadedRegs & 0x7F00);
+    bool previouslyDirty = CPSRDirty;
     SaveCPSR();
 
-    PushRegs(restoreCPSR);
+    if (restoreCPSR)
+    {
+        if (Thumb || CurInstr.Cond() >= 0xE)
+            RegCache.Flush();
+        else
+        {
+            // the ugly way...
+            // we only save them, to load and save them again
+            for (int reg : hiRegsLoaded)
+                SaveReg(reg, RegCache.Mapping[reg]);
+        }
+    }
 
     MOV(64, R(ABI_PARAM1), R(RCPU));
     MOV(32, R(ABI_PARAM2), R(addr));
@@ -150,12 +162,15 @@ void Compiler::Comp_JumpTo(Gen::X64Reg addr, bool restoreCPSR)
     else
         CALL((void*)&ARMv4::JumpTo);
 
-    PopRegs(restoreCPSR);
+    if (!Thumb && restoreCPSR && CurInstr.Cond() < 0xE)
+    {
+        for (int reg : hiRegsLoaded)
+            LoadReg(reg, RegCache.Mapping[reg]);
+    }
 
-    LoadCPSR();
-    // in case this instruction is skipped
-    if (CurInstr.Cond() < 0xE)
-        CPSRDirty = cpsrDirty;
+    if (previouslyDirty)
+        LoadCPSR();
+    CPSRDirty = previouslyDirty;
 }
 
 void Compiler::A_Comp_BranchImm()
@@ -194,12 +209,20 @@ void Compiler::T_Comp_BCOND()
     s32 offset = (s32)(CurInstr.Instr << 24) >> 23;
     Comp_JumpTo(R15 + offset + 1, true);
 
-    Comp_SpecialBranchBehaviour(true);
+    Comp_SpecialBranchBehaviour();
 
     FixupBranch skipFailed = J();
     SetJumpTarget(skipExecute);
 
-    Comp_SpecialBranchBehaviour(false);
+    if (CurInstr.BranchFlags & branch_FollowCondTaken)
+    {
+        RegCache.PrepareExit();
+        SaveCPSR(false);
+        
+        MOV(32, R(RAX), Imm32(ConstantCycles));
+        ABI_PopRegistersAndAdjustStack(BitSet32(ABI_ALL_CALLEE_SAVED & ABI_ALL_GPRS & ~BitSet32({RSP})), 8);
+        RET();
+    }
 
     Comp_AddCycles_C(true);
     SetJumpTarget(skipFailed);

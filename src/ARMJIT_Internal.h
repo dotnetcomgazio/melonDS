@@ -15,8 +15,7 @@ enum
 {
 	branch_IdleBranch = 1 << 0,
 	branch_FollowCondTaken = 1 << 1,
-	branch_FollowCondNotTaken = 1 << 2,
-	branch_StaticTarget = 1 << 3,
+	branch_FollowCondNotTaken = 1 << 2
 };
 
 struct FetchedInstr
@@ -41,9 +40,9 @@ struct FetchedInstr
     u32 Instr;
 	u32 Addr;
 
+    u8 CodeCycles;
 	u8 DataCycles;
-    u16 CodeCycles;
-	u32 DataRegion;
+	u8 DataRegion;
 
     ARMInstrInfo::Info Info;
 };
@@ -77,7 +76,7 @@ struct __attribute__((packed)) TinyVector
 		assert(capacity > Capacity);
 		T* newMem = new T[capacity];
 		if (Data != NULL)
-			memcpy(newMem, Data, sizeof(T) * Length);
+			memcpy(newMem, Data, sizeof(Data) * Length);
 
 		T* oldData = Data;
 		Data = newMem;
@@ -85,14 +84,6 @@ struct __attribute__((packed)) TinyVector
 			delete[] oldData;
 		
 		Capacity = capacity;
-	}
-
-	void SetLength(u16 length)
-	{
-		if (Capacity < length)
-			MakeCapacity(length);
-		
-		Length = length;
 	}
 
 	void Clear()
@@ -152,44 +143,30 @@ struct __attribute__((packed)) TinyVector
 class JitBlock
 {
 public:
-	JitBlock(u32 num, u32 literalHash, u32 numAddresses, u32 numLiterals)
+	JitBlock(u32 numInstrs, u32 numAddresses)
 	{
-		Num = num;
+		NumInstrs = numInstrs;
 		NumAddresses = numAddresses;
-		NumLiterals = numLiterals;
-		Data.SetLength(numAddresses * 2 + numLiterals);
+		Data = new u32[numInstrs + numAddresses];
 	}
 
-	u32 PseudoPhysicalAddr;
+	~JitBlock()
+	{
+		delete[] Data;
+	}
 
-	u32 InstrHash, LiteralHash;
-	u8 Num;
-	u16 NumAddresses;
-	u16 NumLiterals;
+	u32 StartAddr;
+	u32 PseudoPhysicalAddr;
+	
+	u32 NumInstrs;
+	u32 NumAddresses;
 
 	JitBlockEntry EntryPoint;
 
+	u32* Instrs()
+	{ return Data; }
 	u32* AddressRanges()
-	{ return &Data[0]; }
-	u32* AddressMasks()
-	{ return &Data[NumAddresses]; }
-	u32* Literals()
-	{ return &Data[NumAddresses * 2]; }
-	u32* Links()
-	{ return &Data[NumAddresses * 2 + NumLiterals]; }
-
-	u32 NumLinks()
-	{ return Data.Length - NumAddresses * 2 - NumLiterals; }
-
-	void AddLink(u32 link)
-	{
-		Data.Add(link);
-	}
-
-	void ResetLinks()
-	{
-		Data.SetLength(NumAddresses * 2 + NumLiterals);
-	}
+	{ return Data + NumInstrs; }
 
 private:
 	/*
@@ -197,14 +174,15 @@ private:
 		NumInstrs..<(NumLinks + NumInstrs) - pseudo physical addresses where the block is located
 			(atleast one, the pseudo physical address of the block)
 	*/
-	TinyVector<u32> Data;
+	u32* Data;
 };
 
 // size should be 16 bytes because I'm to lazy to use mul and whatnot
 struct __attribute__((packed)) AddressRange
 {
 	TinyVector<JitBlock*> Blocks;
-	u32 Code;
+	u16 InvalidLiterals;
+	u16 TimesInvalidated;
 };
 
 extern AddressRange CodeRanges[ExeMemSpaceSize / 512];
@@ -213,44 +191,7 @@ typedef void (*InterpreterFunc)(ARM* cpu);
 extern InterpreterFunc InterpretARM[];
 extern InterpreterFunc InterpretTHUMB[];
 
-extern u8 MemoryStatus9[0x800000];
-extern u8 MemoryStatus7[0x800000];
-
-extern TinyVector<u32> InvalidLiterals;
-
 void* GetFuncForAddr(ARM* cpu, u32 addr, bool store, int size);
-
-template <u32 Num>
-void LinkBlock(ARM* cpu, u32 codeOffset);
-
-enum
-{
-	memregion_Other = 0,
-	memregion_ITCM,
-	memregion_DTCM,
-	memregion_BIOS9,
-	memregion_MainRAM,
-	memregion_SWRAM9,
-	memregion_SWRAM7,
-	memregion_IO9,
-	memregion_VRAM,
-	memregion_BIOS7,
-	memregion_WRAM7,
-	memregion_IO7,
-	memregion_Wifi,
-	memregion_VWRAM,
-};
-
-int ClassifyAddress9(u32 addr);
-int ClassifyAddress7(u32 addr);
-
-template <typename T> T SlowRead9(ARMv5* cpu, u32 addr);
-template <typename T> void SlowWrite9(ARMv5* cpu, u32 addr, T val);
-template <typename T> T SlowRead7(u32 addr);
-template <typename T> void SlowWrite7(u32 addr, T val);
-
-template <bool PreInc, bool Write> void SlowBlockTransfer9(u32 addr, u64* data, u32 num, ARMv5* cpu);
-template <bool PreInc, bool Write> void SlowBlockTransfer7(u32 addr, u64* data, u32 num);
 
 }
 

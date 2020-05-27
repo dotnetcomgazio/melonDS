@@ -47,10 +47,10 @@ extern int GL_ScaleFactor;
 extern int GL_Antialias;
 
 #ifdef JIT_ENABLED
-extern int JIT_Enable;
+extern bool JIT_Enable;
 extern int JIT_MaxBlockSize;
-extern int JIT_BrancheOptimisations;
-extern int JIT_LiteralOptimisations;
+extern bool JIT_BrancheOptimisations;
+extern bool JIT_LiteralOptimisations;
 #endif
 
 }

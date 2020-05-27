@@ -9,5 +9,3 @@ melon_grc.h
 cmake-build
 cmake-build-debug
 .idea
-
-*.exe

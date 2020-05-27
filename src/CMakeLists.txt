@@ -10,6 +10,7 @@ add_library(core STATIC
 	ARMInterpreter_ALU.cpp
 	ARMInterpreter_Branch.cpp
 	ARMInterpreter_LoadStore.cpp
+	ARM_InstrInfo.cpp
 	Config.cpp
 	CP15.cpp
 	CRC32.cpp
@@ -29,16 +30,11 @@ add_library(core STATIC
 	SPU.cpp
 	Wifi.cpp
 	WifiAP.cpp
-
-	xxhash/xxhash.c
 )
 
 if (ENABLE_JIT)
-	enable_language(ASM)
-
 	target_sources(core PRIVATE
 		ARMJIT.cpp
-		ARM_InstrInfo.cpp
 
 		dolphin/CommonFuncs.cpp
 	)
@@ -53,10 +49,7 @@ if (ENABLE_JIT)
 			ARMJIT_x64/ARMJIT_ALU.cpp
 			ARMJIT_x64/ARMJIT_LoadStore.cpp
 			ARMJIT_x64/ARMJIT_Branch.cpp
-
-			ARMJIT_x64/ARMJIT_Linkage.s
 		)
-		set_source_files_properties(ARMJIT_x64/ARMJIT_Linkage.s PROPERTIES COMPILE_FLAGS "-x assembler-with-cpp")
 	endif()
 	if (ARCHITECTURE STREQUAL ARM64)
 		target_sources(core PRIVATE
