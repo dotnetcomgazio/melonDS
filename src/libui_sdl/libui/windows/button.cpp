@@ -45,11 +45,11 @@ static void uiButtonMinimumSize(uiWindowsControl *c, int *width, int *height)
 	int y;
 
 	if (b->idealSizeCached)
-    {
-        *width = b->idealSize.cx;
-        *height = b->idealSize.cy;
-        return;
-    }
+	{
+		*width = b->idealSize.cx;
+		*height = b->idealSize.cy;
+		return;
+	}
 
 	// try the comctl32 version 6 way
 	size.cx = 0;		// explicitly ask for ideal size
@@ -74,8 +74,8 @@ static void uiButtonMinimumSize(uiWindowsControl *c, int *width, int *height)
 	uiWindowsSizingDlgUnitsToPixels(&sizing, NULL, &y);
 	*height = y;
 	b->idealSize.cx = *width;
-    b->idealSize.cy = *height;
-    b->idealSizeCached = true;
+	b->idealSize.cy = *height;
+	b->idealSizeCached = true;
 }
 
 static void defaultOnClicked(uiButton *b, void *data)
